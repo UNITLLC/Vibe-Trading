@@ -157,7 +157,19 @@ def config_path() -> Path:
 
 
 def load_config() -> AlpacaConfig:
-    """Load Alpaca settings from ``~/.vibe-trading/alpaca.json``."""
+    """Load Alpaca settings from env override or ``~/.vibe-trading/alpaca.json``.
+
+    ``ALPACA_CONFIG_JSON`` takes precedence over the on-disk config, for
+    deployments without a persistent runtime root.
+    """
+    override = os.environ.get("ALPACA_CONFIG_JSON", "").strip()
+    if override:
+        try:
+            return AlpacaConfig.from_mapping(json.loads(override))
+        except (ValueError, json.JSONDecodeError) as exc:
+            raise AlpacaConfigError(
+                f"invalid Alpaca config from ALPACA_CONFIG_JSON: {exc}"
+            ) from exc
     path = config_path()
     if not path.exists():
         return AlpacaConfig()
