@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 from src.config.paths import get_runtime_root
@@ -69,7 +70,15 @@ def profile_by_id(profile_id: str | None = None) -> TradingProfile:
 
 
 def load_selected_profile_id() -> str:
-    """Load the selected trading profile id."""
+    """Load the selected trading profile id.
+
+    ``TRADING_CONNECTIONS_PROFILE`` takes precedence over the on-disk config,
+    for deployments without a persistent runtime root. Like the file path, the
+    id is returned unvalidated; ``profile_by_id`` raises on an unknown id.
+    """
+    override = os.environ.get("TRADING_CONNECTIONS_PROFILE", "").strip().lower()
+    if override:
+        return override
     path = config_path()
     if not path.exists():
         return DEFAULT_PROFILE_ID
