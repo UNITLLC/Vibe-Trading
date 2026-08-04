@@ -375,7 +375,18 @@ def serve_main(argv: list[str] | None = None) -> int:
     install_access_log_redaction_filter()
 
     try:
-        uvicorn.run(app, host=args.host, port=args.port, log_level="info")
+        # Honor X-Forwarded-Proto/For from the platform edge proxy (Railway
+        # terminates HTTPS and forwards plain HTTP internally). Without this
+        # Uvicorn reports scheme=http/port=80, so the origin-vs-host port check
+        # in api.security rejects same-site browser requests as cross-site.
+        uvicorn.run(
+            app,
+            host=args.host,
+            port=args.port,
+            log_level="info",
+            proxy_headers=True,
+            forwarded_allow_ips="*",
+        )
     finally:
         if vite_proc:
             vite_proc.terminate()
