@@ -115,6 +115,30 @@ def get_open_orders(
     return _call_remote(profile, "orders", _account_arg(overrides))
 
 
+def get_closed_orders(
+    profile_id: str | None = None,
+    *,
+    limit: int = 20,
+    **overrides: Any,
+) -> dict[str, Any]:
+    """Read closed (filled/canceled/expired) order history for a connector profile.
+
+    Only ``broker_sdk`` connectors whose module implements ``get_closed_orders``
+    support this (currently Alpaca) — other connectors report unsupported
+    rather than guessing at a shape their SDK doesn't provide.
+    """
+    profile = profile_by_id(profile_id)
+    if profile.transport == "broker_sdk":
+        module = _sdk_module(profile.connector)
+        if not hasattr(module, "get_closed_orders"):
+            return _unsupported(profile, "orders.closed")
+        return _with_profile(
+            profile,
+            module.get_closed_orders(module.build_config(profile.config, overrides), limit=limit),
+        )
+    return _unsupported(profile, "orders.closed")
+
+
 def get_quote(
     symbol: str,
     profile_id: str | None = None,

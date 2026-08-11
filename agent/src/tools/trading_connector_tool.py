@@ -20,6 +20,7 @@ from src.trading.service import (
     cancel_order,
     check_connection,
     get_account,
+    get_closed_orders,
     get_history,
     get_open_orders,
     get_positions,
@@ -216,6 +217,45 @@ class TradingOrdersTool(BaseTool):
                 get_open_orders(
                     _connection(kwargs.get("connection")),
                     include_executions=bool(kwargs.get("include_executions", False)),
+                    **_overrides(kwargs),
+                )
+            )
+        except Exception as exc:  # noqa: BLE001
+            return _json_result({"status": "error", "error": str(exc)})
+
+
+class TradingClosedOrdersTool(BaseTool):
+    """Read closed order history (past fills) from a trading connector profile."""
+
+    name = "trading_closed_orders"
+    description = (
+        "Read closed order history (filled/canceled/expired) from the selected "
+        "trading connector profile — the agent's own past orders with fill price "
+        "and timestamps, for reviewing what it already did. Read-only. Currently "
+        "supported for Alpaca profiles; other connectors report unsupported."
+    )
+    parameters = {
+        "type": "object",
+        "properties": {
+            **TRADING_COMMON_PARAMETERS,
+            "limit": {
+                "type": "integer",
+                "default": 20,
+                "description": "Max number of closed orders to return, most recent first.",
+            },
+        },
+        "required": [],
+    }
+    repeatable = True
+    is_readonly = True
+
+    def execute(self, **kwargs: Any) -> str:
+        """Read closed order history."""
+        try:
+            return _json_result(
+                get_closed_orders(
+                    _connection(kwargs.get("connection")),
+                    limit=int(kwargs.get("limit") or 20),
                     **_overrides(kwargs),
                 )
             )

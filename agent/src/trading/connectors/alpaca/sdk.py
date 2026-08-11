@@ -1,7 +1,8 @@
 """Alpaca connector via the official ``alpaca-py`` SDK — with opt-in TAP routing.
 
-Exposes the five reads (account/positions/orders via ``TradingClient``,
-quote/bars via ``StockHistoricalDataClient``) plus order placement and cancel.
+Exposes the six reads (account/positions/orders/closed-orders via
+``TradingClient``, quote/bars via ``StockHistoricalDataClient``) plus order
+placement and cancel.
 
 Credential isolation (opt-in): when TAP is configured (``TAP_PROXY_URL`` +
 ``TAP_AGENT_KEY``), the **entire** broker egress — reads, order placement, and
@@ -374,6 +375,35 @@ def get_open_orders(config: AlpacaConfig | None = None, *, include_executions: b
             _order_to_dict(item) for item in _as_iter(closed) if _obj_get(item, "filled_qty")
         ]
     return result
+
+
+def get_closed_orders(config: AlpacaConfig | None = None, *, limit: int = 20) -> dict[str, Any]:
+    """Fetch closed (filled/canceled/expired) orders — the agent's own order history.
+
+    Unlike :func:`get_open_orders`'s ``include_executions`` (which surfaces
+    recent fills as a side channel and drops anything without ``filled_qty``),
+    this returns the raw closed-order list Alpaca reports, newest first, so the
+    agent can see what it did and when — including its own cancellations.
+    """
+    cfg = config or load_config()
+    limit_value = max(1, int(limit))
+    if tap_forward.tap_enabled():
+        closed = _read_via_tap(f"{cfg.host}/v2/orders?status=closed&limit={limit_value}")
+    else:
+        client = _trading_client(cfg)
+        _require_alpaca()
+        from alpaca.trading.requests import GetOrdersRequest  # type: ignore
+        from alpaca.trading.enums import QueryOrderStatus  # type: ignore
+
+        closed = client.get_orders(
+            filter=GetOrdersRequest(status=QueryOrderStatus.CLOSED, limit=limit_value)
+        )
+    return {
+        "status": "ok",
+        "profile": cfg.profile,
+        "is_paper": cfg.is_paper,
+        "closed_orders": [_closed_order_to_dict(item) for item in _as_iter(closed)],
+    }
 
 
 def get_quote(symbol: str, *, config: AlpacaConfig | None = None, **_: Any) -> dict[str, Any]:
@@ -858,10 +888,38 @@ def _obj_get(obj: Any, name: str, default: Any = None) -> Any:
     return getattr(obj, name, default)
 
 
+def _enum_str(item: Any, name: str, default: str = "") -> str:
+    """Extract ``name`` as a plain string, unwrapping an SDK enum's ``.value``.
+
+    ``alpaca-py`` enums (``OrderSide``, ``OrderStatus``, ``OrderType``) mix in
+    ``str`` but ``Enum.__str__`` still wins, so bare ``str(x)`` renders
+    ``"OrderSide.BUY"`` instead of ``"buy"``. TAP/raw-REST payloads are already
+    plain strings, where ``getattr(x, "value", x)`` is a no-op.
+    """
+    value = _obj_get(item, name, default)
+    if value is None:
+        return default
+    return str(getattr(value, "value", value))
+
+
+def _iso_or_str(value: Any) -> str | None:
+    """Normalize a timestamp field to an ISO-8601 string.
+
+    Direct-SDK responses (``client.get_orders`` etc.) return ``datetime``
+    objects, which ``json.dumps`` cannot serialize; TAP/raw-REST responses are
+    already ISO-8601 strings. ``None`` (e.g. ``filled_at`` on an unfilled
+    order) stays ``None`` rather than becoming the literal string ``"None"``.
+    """
+    if value is None:
+        return None
+    isoformat = getattr(value, "isoformat", None)
+    return isoformat() if callable(isoformat) else str(value)
+
+
 def _position_to_dict(item: Any) -> dict[str, Any]:
     return {
         "symbol": _obj_get(item, "symbol"),
-        "side": str(_obj_get(item, "side", "")),
+        "side": _enum_str(item, "side"),
         "quantity": _obj_get(item, "qty"),
         "average_cost": _obj_get(item, "avg_entry_price"),
         "market_value": _obj_get(item, "market_value"),
@@ -875,15 +933,28 @@ def _order_to_dict(item: Any) -> dict[str, Any]:
     return {
         "order_id": str(_obj_get(item, "id", "")),
         "symbol": _obj_get(item, "symbol"),
-        "side": str(_obj_get(item, "side", "")),
-        "order_type": str(_obj_get(item, "order_type", "") or _obj_get(item, "type", "")),
+        "side": _enum_str(item, "side"),
+        "order_type": _enum_str(item, "order_type") or _enum_str(item, "type"),
         "quantity": _obj_get(item, "qty"),
         "notional": _obj_get(item, "notional"),
         "filled_qty": _obj_get(item, "filled_qty"),
         "filled_avg_price": _obj_get(item, "filled_avg_price"),
         "limit_price": _obj_get(item, "limit_price"),
-        "status": str(_obj_get(item, "status", "")),
-        "submitted_at": str(_obj_get(item, "submitted_at", "")),
+        "status": _enum_str(item, "status"),
+        "submitted_at": _iso_or_str(_obj_get(item, "submitted_at")),
+    }
+
+
+def _closed_order_to_dict(item: Any) -> dict[str, Any]:
+    return {
+        "order_id": str(_obj_get(item, "id", "")),
+        "client_order_id": _obj_get(item, "client_order_id"),
+        "symbol": _obj_get(item, "symbol"),
+        "side": _enum_str(item, "side"),
+        "quantity": _obj_get(item, "qty"),
+        "filled_avg_price": _obj_get(item, "filled_avg_price"),
+        "filled_at": _iso_or_str(_obj_get(item, "filled_at")),
+        "submitted_at": _iso_or_str(_obj_get(item, "submitted_at")),
     }
 
 
