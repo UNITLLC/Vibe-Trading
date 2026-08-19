@@ -166,7 +166,9 @@ def load_config() -> AlpacaConfig:
     ``ALPACA_CONFIG_JSON`` takes precedence over the on-disk config, for
     deployments without a persistent runtime root.
     """
-    override = os.environ.get("ALPACA_CONFIG_JSON", "").strip()
+    from src.config.accessor import get_env_config
+
+    override = get_env_config().trading.alpaca_config_json.strip()
     if override:
         try:
             return AlpacaConfig.from_mapping(json.loads(override))

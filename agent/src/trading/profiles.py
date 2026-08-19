@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 
+from src.config.accessor import get_env_config
 from src.config.paths import get_runtime_root
 from src.trading.connectors.alpaca.profiles import ALPACA_PROFILES
 from src.trading.connectors.binance.profiles import BINANCE_PROFILES
@@ -76,7 +76,7 @@ def load_selected_profile_id() -> str:
     for deployments without a persistent runtime root. Like the file path, the
     id is returned unvalidated; ``profile_by_id`` raises on an unknown id.
     """
-    override = os.environ.get("TRADING_CONNECTIONS_PROFILE", "").strip().lower()
+    override = get_env_config().trading.trading_connections_profile.strip().lower()
     if override:
         return override
     path = config_path()
