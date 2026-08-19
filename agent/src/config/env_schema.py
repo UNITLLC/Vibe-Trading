@@ -36,6 +36,7 @@ __all__ = [
     "PathConfig",
     "OcrConfig",
     "MemoryConfig",
+    "TradingConfig",
 ]
 
 
@@ -496,6 +497,24 @@ class MemoryConfig(_EnvBase):
 
 
 # ---------------------------------------------------------------------------
+# Trading connectors
+# ---------------------------------------------------------------------------
+
+
+class TradingConfig(_EnvBase):
+    """Trading connector deployment overrides.
+
+    Sources: ``src/trading/connectors/alpaca/sdk.py``, ``src/trading/profiles.py``.
+    Used when a deployment has no persistent ``~/.vibe-trading`` runtime root.
+    """
+
+    alpaca_config_json: str = Field(alias="ALPACA_CONFIG_JSON", default="")
+    trading_connections_profile: str = Field(
+        alias="TRADING_CONNECTIONS_PROFILE", default="",
+    )
+
+
+# ---------------------------------------------------------------------------
 # Top-level composition
 # ---------------------------------------------------------------------------
 
@@ -519,6 +538,7 @@ class EnvConfig(_EnvBase):
     paths: PathConfig = Field(default_factory=PathConfig)
     ocr: OcrConfig = Field(default_factory=OcrConfig)
     memory: MemoryConfig = Field(default_factory=MemoryConfig)
+    trading: TradingConfig = Field(default_factory=TradingConfig)
 
     @model_validator(mode="after")
     def _resolve_api_key_alias(self) -> "EnvConfig":

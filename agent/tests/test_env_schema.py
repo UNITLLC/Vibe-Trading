@@ -33,6 +33,7 @@ from src.config.env_schema import (
     LLMConfig,
     PathConfig,
     SwarmConfig,
+    TradingConfig,
     _parse_env_bool,
 )
 
@@ -43,7 +44,15 @@ from src.config.env_schema import (
 
 # All env-var aliases used by EnvConfig sub-models.
 _ALL_ALIASES: list[str] = []
-for _model in (LLMConfig, DataConfig, APIConfig, SwarmConfig, AgentTuningConfig, PathConfig):
+for _model in (
+    LLMConfig,
+    DataConfig,
+    APIConfig,
+    SwarmConfig,
+    AgentTuningConfig,
+    PathConfig,
+    TradingConfig,
+):
     for _info in _model.model_fields.values():
         if _info.alias:
             _ALL_ALIASES.append(_info.alias)
@@ -148,6 +157,11 @@ class TestEnvConfigDefaults:
         assert c.paths.vibe_trading_goal_db_path == ""
         assert c.paths.vibe_trading_swarm_agent_config == ""
         assert c.paths.allow_session_mcp_servers is False
+
+    def test_trading_defaults(self) -> None:
+        c = EnvConfig()
+        assert c.trading.alpaca_config_json == ""
+        assert c.trading.trading_connections_profile == ""
 
 
 # ===================================================================
