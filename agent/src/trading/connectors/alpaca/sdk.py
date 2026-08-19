@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -32,6 +33,8 @@ from typing import Any, Mapping
 
 from src.config.paths import get_runtime_root
 from src.trading import tap_forward
+
+logger = logging.getLogger(__name__)
 
 CONFIG_FILENAME = "alpaca.json"
 
@@ -387,7 +390,15 @@ def get_closed_orders(config: AlpacaConfig | None = None, *, limit: int = 20) ->
     """
     cfg = config or load_config()
     limit_value = max(1, int(limit))
-    if tap_forward.tap_enabled():
+    via_tap = tap_forward.tap_enabled()
+    logger.info(
+        "alpaca get_closed_orders call profile=%s is_paper=%s limit=%s via_tap=%s",
+        cfg.profile,
+        cfg.is_paper,
+        limit_value,
+        via_tap,
+    )
+    if via_tap:
         closed = _read_via_tap(f"{cfg.host}/v2/orders?status=closed&limit={limit_value}")
     else:
         client = _trading_client(cfg)
@@ -398,11 +409,17 @@ def get_closed_orders(config: AlpacaConfig | None = None, *, limit: int = 20) ->
         closed = client.get_orders(
             filter=GetOrdersRequest(status=QueryOrderStatus.CLOSED, limit=limit_value)
         )
+    closed_orders = [_closed_order_to_dict(item) for item in _as_iter(closed)]
+    logger.info(
+        "alpaca get_closed_orders returned count=%s profile=%s",
+        len(closed_orders),
+        cfg.profile,
+    )
     return {
         "status": "ok",
         "profile": cfg.profile,
         "is_paper": cfg.is_paper,
-        "closed_orders": [_closed_order_to_dict(item) for item in _as_iter(closed)],
+        "closed_orders": closed_orders,
     }
 
 

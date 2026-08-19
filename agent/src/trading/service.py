@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from src.trading.profiles import list_profiles, profile_by_id
 from src.trading.types import TradingProfile
+
+logger = logging.getLogger(__name__)
 
 RUNNER_CAPABILITY = "runner.manage.requires_mandate"
 
@@ -128,14 +131,30 @@ def get_closed_orders(
     rather than guessing at a shape their SDK doesn't provide.
     """
     profile = profile_by_id(profile_id)
+    logger.info(
+        "get_closed_orders dispatch profile_id=%s connector=%s transport=%s limit=%s",
+        profile.id,
+        profile.connector,
+        profile.transport,
+        limit,
+    )
     if profile.transport == "broker_sdk":
         module = _sdk_module(profile.connector)
         if not hasattr(module, "get_closed_orders"):
+            logger.info(
+                "get_closed_orders unsupported connector=%s (no get_closed_orders)",
+                profile.connector,
+            )
             return _unsupported(profile, "orders.closed")
         return _with_profile(
             profile,
             module.get_closed_orders(module.build_config(profile.config, overrides), limit=limit),
         )
+    logger.info(
+        "get_closed_orders unsupported transport=%s for profile_id=%s",
+        profile.transport,
+        profile.id,
+    )
     return _unsupported(profile, "orders.closed")
 
 

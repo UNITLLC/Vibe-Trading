@@ -7,6 +7,7 @@ selected profile from ``~/.vibe-trading/trading-connections.json``.
 from __future__ import annotations
 
 import json
+import logging
 from typing import Any
 
 from src.agent.tools import BaseTool
@@ -27,6 +28,8 @@ from src.trading.service import (
     get_quote,
     place_order,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _json_result(payload: dict[str, Any]) -> str:
@@ -251,11 +254,18 @@ class TradingClosedOrdersTool(BaseTool):
 
     def execute(self, **kwargs: Any) -> str:
         """Read closed order history."""
+        connection = _connection(kwargs.get("connection"))
+        limit = int(kwargs.get("limit") or 20)
+        logger.info(
+            "trading_closed_orders tool invoked connection=%s limit=%s",
+            connection,
+            limit,
+        )
         try:
             return _json_result(
                 get_closed_orders(
-                    _connection(kwargs.get("connection")),
-                    limit=int(kwargs.get("limit") or 20),
+                    connection,
+                    limit=limit,
                     **_overrides(kwargs),
                 )
             )
