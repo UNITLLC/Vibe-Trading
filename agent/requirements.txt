@@ -45,7 +45,7 @@ ccxt>=4.0.0
 # Alpaca broker connector (import name: alpaca). API surface used by
 # connectors/alpaca/sdk.py is TradingClient / StockHistoricalDataClient +
 # trading.requests|enums and data.requests|enums|timeframe — stable since 0.40.
-alpaca-py>=0.40.0
+alpaca-py>=0.44.0
 # optional: pip install "vibe-trading-ai[mt5]" — MetaTrader 5 terminal bridge (Windows only): forex/metals data + broker connector
 
 # REST API & SSE
